@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
 
-const CONTRACT_ADDRESS = "0x500Be0dEf78fB641f5e90eBB25C73FFbB0FEd1Eb";
+const CONTRACT_ADDRESS = "0xb23600e46a9d374E5991410fF996Af9097404529";
 const USDT_ADDRESS = "0x9e5aac1ba1a2e6aed6b32689dfcf62a509ca96f3";
 
 const ABI = [
