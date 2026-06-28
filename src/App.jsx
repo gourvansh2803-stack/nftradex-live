@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
 
-const CONTRACT_ADDRESS = "0xb23600e46a9d374E5991410fF996Af9097404529";
+const CONTRACT_ADDRESS = "0x9faE3285F5fC060C984DcfA0339463Ac889a461E";
 const USDT_ADDRESS = "0x9e5aac1ba1a2e6aed6b32689dfcf62a509ca96f3";
 
+// ABI updated to match 10 return values of User struct + public getters
 const ABI = [
   "function register(address _upline) external", 
-  "function buyNFT() external", 
+  "function buyNFT(uint256 nftId) external", 
   "function claimExpiredNFT(uint256 nftId) external",
   "function unlockAccount() external",
   "function users(address) view returns (bool isReg, address upline, uint256 directsCount, uint256 totalEarned, uint256 levelEarned, uint256 tradingEarned, uint256 dailyInvested, uint256 lastInvTime, uint256 nfsId, bool isLocked)",
@@ -37,6 +38,12 @@ export default function App() {
   const [now, setNow] = useState(Math.floor(Date.now() / 1000));
   const [sponsor, setSponsor] = useState('');
 
+  // TIMER LOGIC FIX: resetTime aur timeLeft calculate karo
+  const resetTime = user.lastInvTime + 86400;
+  const timeLeft = (resetTime > now) ? (resetTime - now) : 0;
+  // Agar timer khatam (0), toh limit 0 dikhao, warna current value
+  const displayInv = (timeLeft === 0) ? "0.0" : user.inv;
+
   useEffect(() => {
     const t = setInterval(() => setNow(Math.floor(Date.now() / 1000)), 1000);
     return () => clearInterval(t);
@@ -66,12 +73,13 @@ export default function App() {
       
       const u = await c.users(acc);
       
+      // Fetch dynamic limits set by Admin
       let tLimit = ethers.parseEther("20");
       let lMult = 3n;
       try {
         tLimit = await c.tradingLimit();
         lMult = await c.limitMultiplier();
-      } catch(err) { /* fallback older version */ }
+      } catch(err) { /* fallback if contract is older version */ }
 
       const calculatedMaxLimit = ethers.formatEther(tLimit * lMult);
 
@@ -95,7 +103,10 @@ export default function App() {
       const mItems = [];
       for(let id of q) {
           const n = await c.nfts(id);
-          if(!n[5]) mItems.push({ id: Number(n[0]), price: ethers.formatEther(n[2]) });
+          // MARKET FIX: Check if isForSale (n[4]) is true, and isSold (n[5]) / isClaimed (n[6]) are false
+          if(n[4] && !n[5] && !n[6]) {
+              mItems.push({ id: Number(n[0]), price: ethers.formatEther(n[2]) });
+          }
       }
       setMarketItems(mItems);
 
@@ -122,6 +133,10 @@ export default function App() {
       if(usdt > 0n) {
         const u = new ethers.Contract(USDT_ADDRESS, USDT_ABI, s);
         const allowance = await u.allowance(acc, CONTRACT_ADDRESS);
+        
+        console.log(`[DEBUG] Current Allowance: ${allowance.toString()}`);
+        console.log(`[DEBUG] Contract: ${CONTRACT_ADDRESS}`);
+
         if(allowance < usdt) {
             alert(`Approve transaction start ho rahi hai...`);
             const approveTx = await u.approve(CONTRACT_ADDRESS, ethers.MaxUint256);
@@ -174,6 +189,7 @@ export default function App() {
     <div className="min-h-screen bg-[#0a0f1a] text-white font-sans selection:bg-cyan-500/30 pb-20">
       <div className="max-w-md mx-auto relative pt-4 px-4">
         
+        {/* Header */}
         <div className="flex justify-between items-center mb-6">
           <div className="flex items-center gap-2 bg-[#111827] border border-gray-800 rounded-full px-3 py-1.5 shadow-inner">
              <div className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_5px_#22c55e] animate-pulse"></div>
@@ -185,13 +201,15 @@ export default function App() {
           </div>
         </div>
 
+        {/* Daily Limit Card */}
         <div className="bg-[#111827]/80 border border-blue-500/40 rounded-3xl p-6 mb-6 shadow-[0_0_20px_rgba(59,130,246,0.15)] relative overflow-hidden text-center">
            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-600 to-cyan-400"></div>
            <p className="text-xs text-blue-200/70 font-bold tracking-widest mb-2 uppercase">Daily Limit Used</p>
-           <h2 className="text-4xl font-black text-blue-400 drop-shadow-[0_0_10px_rgba(96,165,250,0.5)]">{user.inv} <span className="text-xl text-yellow-500">/ 20</span> <span className="text-sm text-gray-500 font-bold">USDT</span></h2>
-           <p className="text-[10px] text-gray-500 font-mono mt-2 tracking-widest">RESET IN: {user.lastInvTime > 0 ? formatTime(user.lastInvTime + 86400 - now) : "00:00:00"}</p>
+           <h2 className="text-4xl font-black text-blue-400 drop-shadow-[0_0_10px_rgba(96,165,250,0.5)]">{displayInv} <span className="text-xl text-yellow-500">/ 20</span> <span className="text-sm text-gray-500 font-bold">USDT</span></h2>
+           <p className="text-[10px] text-gray-500 font-mono mt-2 tracking-widest">RESET IN: {user.lastInvTime > 0 ? formatTime(timeLeft) : "00:00:00"}</p>
         </div>
 
+        {/* ⚠️ Account Locked Warning Banner */}
         {user.isLocked && (
           <div className="bg-gradient-to-r from-red-950/90 to-orange-950/90 border border-red-500/80 rounded-3xl p-5 mb-6 shadow-[0_0_25px_rgba(239,68,68,0.25)] text-center animate-pulse">
              <h3 className="text-red-400 font-black text-sm tracking-wider mb-1">⚠️ ACCOUNT LOCKED (3x LIMIT REACHED)</h3>
@@ -203,12 +221,14 @@ export default function App() {
           </div>
         )}
 
+        {/* Navigation Tabs */}
         <div className="flex bg-[#111827] rounded-full p-1.5 mb-6 border border-gray-800 shadow-inner">
           {['Market', 'History', 'Income'].map(t => (
             <button key={t} onClick={() => setTab(t)} className={`flex-1 py-2.5 rounded-full text-xs font-black tracking-wider transition-all duration-300 ${tab===t ? 'bg-gradient-to-r from-blue-600 to-cyan-600 shadow-[0_0_10px_rgba(6,182,212,0.3)] text-white' : 'text-gray-500 hover:text-gray-300'}`}>{t.toUpperCase()}</button>
           ))}
         </div>
         
+        {/* MARKET TAB */}
         {tab === 'Market' && (
           <div className="space-y-4 animate-in fade-in duration-300">
             <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2 pl-2">Live Market Queue</h3>
@@ -221,13 +241,14 @@ export default function App() {
                        <p className="text-xs font-bold text-yellow-400 mt-0.5">{n.price} USDT</p>
                     </div>
                  </div>
-                 <button onClick={() => doTx('Purchase', 'buyNFT', [], ethers.parseEther(n.price))} className="bg-gradient-to-r from-yellow-500 to-orange-500 text-black px-6 py-2 rounded-xl font-black text-xs shadow-[0_0_10px_rgba(245,158,11,0.4)] hover:scale-105 transition-transform">BUY</button>
+                 <button onClick={() => doTx('Purchase', 'buyNFT', [n.id], ethers.parseEther(n.price))} className="bg-gradient-to-r from-yellow-500 to-orange-500 text-black px-6 py-2 rounded-xl font-black text-xs shadow-[0_0_10px_rgba(245,158,11,0.4)] hover:scale-105 transition-transform">BUY</button>
               </div>
             ))}
             {marketItems.length === 0 && (
               <div className="text-center py-10 bg-[#111827]/60 border border-dashed border-gray-700 rounded-2xl">
                   <p className="text-gray-500 font-mono text-sm mb-6">Market Queue is Empty.</p>
-                  <button onClick={() => doTx('System Purchase', 'buyNFT', [], ethers.parseEther("1"))} 
+                  {/* SYSTEM PURCHASE FIX: Added [0] argument */}
+                  <button onClick={() => doTx('System Purchase', 'buyNFT', [0], ethers.parseEther("1"))} 
                           className="bg-gradient-to-r from-blue-600 to-cyan-600 shadow-[0_0_15px_rgba(6,182,212,0.4)] px-6 py-3 rounded-xl font-black text-white tracking-widest hover:scale-105 transition-transform">
                       BUY FRESH NFT (1 USDT)
                   </button>
@@ -236,6 +257,7 @@ export default function App() {
           </div>
         )}
 
+        {/* HISTORY TAB */}
         {tab === 'History' && (
           <div className="space-y-4 animate-in fade-in duration-300">
             {user.nfsId > 0 && (
@@ -284,10 +306,12 @@ export default function App() {
           </div>
         )}
 
+        {/* INCOME TAB */}
         {tab === 'Income' && (
           <div className="space-y-4 animate-in fade-in duration-300">
             <div className="bg-[#111827] border border-cyan-500/30 rounded-3xl p-6 mb-6 shadow-[0_0_30px_rgba(6,182,212,0.1)] text-center relative overflow-hidden flex flex-col items-center justify-center">
                
+               {/* Spinning Circle Display */}
                <div className="relative flex items-center justify-center w-full my-4">
                    <div className="absolute w-44 h-44 rounded-full border-[6px] border-b-transparent border-l-cyan-500 border-t-blue-500 border-r-purple-500 opacity-60 animate-[spin_10s_linear_infinite]"></div>
                    <div className="relative z-10 bg-[#0a0f1a] w-32 h-32 rounded-full flex flex-col items-center justify-center shadow-[0_0_20px_rgba(0,0,0,0.8)] border border-gray-800">
@@ -297,6 +321,7 @@ export default function App() {
                    </div>
                </div>
 
+               {/* Categorized Income Grid */}
                <div className="grid grid-cols-3 gap-2 mt-4 w-full pt-4 border-t border-gray-800/80">
                  <div className="text-center bg-[#0a0f1a]/60 p-2.5 rounded-2xl border border-green-500/20">
                     <p className="text-[8px] text-gray-400 font-bold uppercase tracking-wider">Level Income</p>
@@ -320,17 +345,3 @@ export default function App() {
             <div className="grid grid-cols-2 gap-4">
                <div className="bg-[#111827]/80 border border-purple-500/30 rounded-2xl p-4">
                   <p className="text-[10px] text-purple-300/70 font-bold tracking-widest mb-1 uppercase">Direct Team</p>
-                  <h3 className="text-2xl font-black text-purple-400">{user.directs} <span className="text-xs text-gray-500">Users</span></h3>
-               </div>
-               <div className="bg-[#111827]/80 border border-green-500/30 rounded-2xl p-4">
-                  <p className="text-[10px] text-green-300/70 font-bold tracking-widest mb-1 uppercase">Net Profit</p>
-                  <h3 className="text-xl font-black text-green-400">3.00%</h3>
-               </div>
-            </div>
-          </div>
-        )}
-
-      </div>
-    </div>
-  );
-}
