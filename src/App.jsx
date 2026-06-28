@@ -4,7 +4,6 @@ import { ethers } from 'ethers';
 const CONTRACT_ADDRESS = "0x9faE3285F5fC060C984DcfA0339463Ac889a461E";
 const USDT_ADDRESS = "0x9e5aac1ba1a2e6aed6b32689dfcf62a509ca96f3";
 
-// ABI updated to match 10 return values of User struct + public getters
 const ABI = [
   "function register(address _upline) external", 
   "function buyNFT() external", 
@@ -67,13 +66,12 @@ export default function App() {
       
       const u = await c.users(acc);
       
-      // Fetch dynamic limits set by Admin
       let tLimit = ethers.parseEther("20");
       let lMult = 3n;
       try {
         tLimit = await c.tradingLimit();
         lMult = await c.limitMultiplier();
-      } catch(err) { /* fallback if contract is older version */ }
+      } catch(err) { /* fallback older version */ }
 
       const calculatedMaxLimit = ethers.formatEther(tLimit * lMult);
 
@@ -124,10 +122,6 @@ export default function App() {
       if(usdt > 0n) {
         const u = new ethers.Contract(USDT_ADDRESS, USDT_ABI, s);
         const allowance = await u.allowance(acc, CONTRACT_ADDRESS);
-        
-        console.log(`[DEBUG] Current Allowance: ${allowance.toString()}`);
-        console.log(`[DEBUG] Contract: ${CONTRACT_ADDRESS}`);
-
         if(allowance < usdt) {
             alert(`Approve transaction start ho rahi hai...`);
             const approveTx = await u.approve(CONTRACT_ADDRESS, ethers.MaxUint256);
@@ -180,7 +174,6 @@ export default function App() {
     <div className="min-h-screen bg-[#0a0f1a] text-white font-sans selection:bg-cyan-500/30 pb-20">
       <div className="max-w-md mx-auto relative pt-4 px-4">
         
-        {/* Header */}
         <div className="flex justify-between items-center mb-6">
           <div className="flex items-center gap-2 bg-[#111827] border border-gray-800 rounded-full px-3 py-1.5 shadow-inner">
              <div className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_5px_#22c55e] animate-pulse"></div>
@@ -192,7 +185,6 @@ export default function App() {
           </div>
         </div>
 
-        {/* Daily Limit Card */}
         <div className="bg-[#111827]/80 border border-blue-500/40 rounded-3xl p-6 mb-6 shadow-[0_0_20px_rgba(59,130,246,0.15)] relative overflow-hidden text-center">
            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-600 to-cyan-400"></div>
            <p className="text-xs text-blue-200/70 font-bold tracking-widest mb-2 uppercase">Daily Limit Used</p>
@@ -200,7 +192,6 @@ export default function App() {
            <p className="text-[10px] text-gray-500 font-mono mt-2 tracking-widest">RESET IN: {user.lastInvTime > 0 ? formatTime(user.lastInvTime + 86400 - now) : "00:00:00"}</p>
         </div>
 
-        {/* ⚠️ Account Locked Warning Banner */}
         {user.isLocked && (
           <div className="bg-gradient-to-r from-red-950/90 to-orange-950/90 border border-red-500/80 rounded-3xl p-5 mb-6 shadow-[0_0_25px_rgba(239,68,68,0.25)] text-center animate-pulse">
              <h3 className="text-red-400 font-black text-sm tracking-wider mb-1">⚠️ ACCOUNT LOCKED (3x LIMIT REACHED)</h3>
@@ -212,14 +203,12 @@ export default function App() {
           </div>
         )}
 
-        {/* Navigation Tabs */}
         <div className="flex bg-[#111827] rounded-full p-1.5 mb-6 border border-gray-800 shadow-inner">
           {['Market', 'History', 'Income'].map(t => (
             <button key={t} onClick={() => setTab(t)} className={`flex-1 py-2.5 rounded-full text-xs font-black tracking-wider transition-all duration-300 ${tab===t ? 'bg-gradient-to-r from-blue-600 to-cyan-600 shadow-[0_0_10px_rgba(6,182,212,0.3)] text-white' : 'text-gray-500 hover:text-gray-300'}`}>{t.toUpperCase()}</button>
           ))}
         </div>
         
-        {/* MARKET TAB */}
         {tab === 'Market' && (
           <div className="space-y-4 animate-in fade-in duration-300">
             <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2 pl-2">Live Market Queue</h3>
@@ -247,7 +236,6 @@ export default function App() {
           </div>
         )}
 
-        {/* HISTORY TAB */}
         {tab === 'History' && (
           <div className="space-y-4 animate-in fade-in duration-300">
             {user.nfsId > 0 && (
@@ -296,12 +284,10 @@ export default function App() {
           </div>
         )}
 
-        {/* INCOME TAB */}
         {tab === 'Income' && (
           <div className="space-y-4 animate-in fade-in duration-300">
             <div className="bg-[#111827] border border-cyan-500/30 rounded-3xl p-6 mb-6 shadow-[0_0_30px_rgba(6,182,212,0.1)] text-center relative overflow-hidden flex flex-col items-center justify-center">
                
-               {/* Spinning Circle Display */}
                <div className="relative flex items-center justify-center w-full my-4">
                    <div className="absolute w-44 h-44 rounded-full border-[6px] border-b-transparent border-l-cyan-500 border-t-blue-500 border-r-purple-500 opacity-60 animate-[spin_10s_linear_infinite]"></div>
                    <div className="relative z-10 bg-[#0a0f1a] w-32 h-32 rounded-full flex flex-col items-center justify-center shadow-[0_0_20px_rgba(0,0,0,0.8)] border border-gray-800">
@@ -311,7 +297,6 @@ export default function App() {
                    </div>
                </div>
 
-               {/* Categorized Income Grid */}
                <div className="grid grid-cols-3 gap-2 mt-4 w-full pt-4 border-t border-gray-800/80">
                  <div className="text-center bg-[#0a0f1a]/60 p-2.5 rounded-2xl border border-green-500/20">
                     <p className="text-[8px] text-gray-400 font-bold uppercase tracking-wider">Level Income</p>
@@ -342,4 +327,10 @@ export default function App() {
                   <h3 className="text-xl font-black text-green-400">3.00%</h3>
                </div>
             </div>
-          </di
+          </div>
+        )}
+
+      </div>
+    </div>
+  );
+}
